@@ -20,6 +20,7 @@ export async function POST(request: Request) {
                 const slackMessage = {
                     text: `* [수거넷 PC - 실시간 견적 신청 알림] *
 안녕하세요, 사장님! 새로운 매입 견적 신청이 들어왔습니다. 🚀
+(검색용 코드: SUGEONET_TEST_CHECK_${new Date().getTime()})
 
 ---
 📢 **견적 신청 내용**
