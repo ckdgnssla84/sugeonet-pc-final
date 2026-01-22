@@ -58,12 +58,24 @@ export async function POST(request: Request) {
         console.log('슬랙 결과:', slackResult);
         console.log('------------------------------');
 
+        // 환경 변수 검증 (보안을 위해 일부 마스킹)
+        const envUrl = process.env.SLACK_WEBHOOK_URL || '';
+        const debugEnv = {
+            exists: !!envUrl,
+            length: envUrl.length,
+            prefix: envUrl.substring(0, 25), // https://hooks.slack.com/s...
+            suffix: envUrl.substring(envUrl.length - 5) // ...L8sT
+        };
+
         return NextResponse.json({
             success: true,
             message: slackResult.success
                 ? '견적 신청이 성공적으로 접수되었습니다!'
                 : `접수는 되었으나 알림 전송에 실패했습니다. (${slackResult.message})`,
-            debug: slackResult
+            debug: {
+                ...slackResult,
+                envCheck: debugEnv
+            }
         });
     } catch (error: any) {
         console.error('Quote API Global Error:', error);
