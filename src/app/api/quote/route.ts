@@ -8,20 +8,13 @@ export async function POST(request: Request) {
         const data = await request.json();
         const { type, model, cpu, ram, gpu, phone, memo } = data;
 
-        // Slack Webhook으로 실시간 알림 전송
+        // 1. Slack Webhook 시도 (설정되어 있을 경우)
         const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL;
 
-        if (!slackWebhookUrl) {
-            console.error('❌ SLACK_WEBHOOK_URL이 설정되지 않았습니다.');
-            return NextResponse.json({
-                success: false,
-                message: '서버 설정 오류: SLACK_WEBHOOK_URL 환경 변수가 없습니다.'
-            }, { status: 500 });
-        }
-
-        const slackMessage = {
-            text: `* [수거넷 PC - 실시간 견적 신청 알림] *
-
+        if (slackWebhookUrl) {
+            try {
+                const slackMessage = {
+                    text: `* [수거넷 PC - 실시간 견적 신청 알림] *
 안녕하세요, 사장님! 새로운 매입 견적 신청이 들어왔습니다. 🚀
 
 ---
@@ -32,26 +25,23 @@ export async function POST(request: Request) {
 • **연락처:** ${phone}
 • **메모:** ${memo || '없음'}
 ---
+확인 부탁드립니다! 📞`,
+                };
 
-웹사이트에서 확인된 실시간 신청 건입니다. 📞`,
-        };
-
-        const slackResponse = await fetch(slackWebhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(slackMessage),
-        });
-
-        if (!slackResponse.ok) {
-            const errorText = await slackResponse.text();
-            console.error('❌ Slack API 오류:', errorText);
-            throw new Error(`Slack API responded with status ${slackResponse.status}: ${errorText}`);
+                await fetch(slackWebhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(slackMessage),
+                });
+            } catch (e) {
+                console.error('Slack 전송 실패 (무시하고 진행):', e);
+            }
         }
 
-        console.log('--- ✅ 견적 신청 및 슬랙 알림 전송 완료 ---');
-        console.log('제품 종류:', type);
-        console.log('연락처:', phone);
-        console.log('----------------------------------------');
+        // 2. 서버 로그에 신청 내역 남기기 (Vercel 대시보드에서 실시간 확인 가능)
+        console.log('--- 🆕 새로운 견적 신청 수신 ---');
+        console.log('데이터:', { type, model, cpu, ram, gpu, phone, memo });
+        console.log('------------------------------');
 
         return NextResponse.json({
             success: true,
