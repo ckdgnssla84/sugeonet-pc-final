@@ -4,14 +4,18 @@ import { NextResponse } from 'next/server';
 // 이 API는 클라이언트의 견적 신청을 받아 내부 로직(또는 에이전트 도구 트리거용)을 처리하는 역할을 합니다.
 
 export async function POST(request: Request) {
+    let slackResult = { success: false, message: '시도 안 함' };
+
     try {
         const data = await request.json();
         const { type, model, cpu, ram, gpu, phone, memo } = data;
 
-        // 1. Slack Webhook 시도 (설정되어 있을 경우)
+        // 1. Slack Webhook 시도
         const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL;
 
-        if (slackWebhookUrl) {
+        if (!slackWebhookUrl) {
+            slackResult = { success: false, message: 'SLACK_WEBHOOK_URL 환경변수가 설정되지 않았습니다.' };
+        } else {
             try {
                 const slackMessage = {
                     text: `* [수거넷 PC - 실시간 견적 신청 알림] *
@@ -28,30 +32,44 @@ export async function POST(request: Request) {
 확인 부탁드립니다! 📞`,
                 };
 
-                await fetch(slackWebhookUrl, {
+                const slackResponse = await fetch(slackWebhookUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(slackMessage),
                 });
-            } catch (e) {
-                console.error('Slack 전송 실패 (무시하고 진행):', e);
+
+                if (slackResponse.ok) {
+                    slackResult = { success: true, message: '슬랙 전송 성공' };
+                } else {
+                    const errorText = await slackResponse.text();
+                    slackResult = { success: false, message: `슬랙 API 오류: ${slackResponse.status} ${errorText}` };
+                    console.error('Slack API Error:', slackResult.message);
+                }
+            } catch (e: any) {
+                slackResult = { success: false, message: `Slack 전송 중 예외 발생: ${e.message}` };
+                console.error('Slack Exception:', e);
             }
         }
 
-        // 2. 서버 로그에 신청 내역 남기기 (Vercel 대시보드에서 실시간 확인 가능)
-        console.log('--- 🆕 새로운 견적 신청 수신 ---');
-        console.log('데이터:', { type, model, cpu, ram, gpu, phone, memo });
+        // 2. 결과 반환 (디버깅 정보 포함)
+        console.log('--- 🆕 견적 신청 처리 결과 ---');
+        console.log('데이터:', { type, model, phone });
+        console.log('슬랙 결과:', slackResult);
         console.log('------------------------------');
 
         return NextResponse.json({
             success: true,
-            message: '견적 신청이 성공적으로 접수되었습니다. 곧 연락드리겠습니다!'
+            message: slackResult.success
+                ? '견적 신청이 성공적으로 접수되었습니다!'
+                : `접수는 되었으나 알림 전송에 실패했습니다. (${slackResult.message})`,
+            debug: slackResult
         });
-    } catch (error) {
-        console.error('Quote API Error:', error);
+    } catch (error: any) {
+        console.error('Quote API Global Error:', error);
         return NextResponse.json({
             success: false,
-            message: '견적 신청 중 오류가 발생했습니다. 다시 시도해 주세요.'
+            message: '서버 내부 오류가 발생했습니다.',
+            error: error.message
         }, { status: 500 });
     }
 }
