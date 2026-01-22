@@ -11,9 +11,16 @@ export async function POST(request: Request) {
         // Slack Webhook으로 실시간 알림 전송
         const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL;
 
-        if (slackWebhookUrl) {
-            const slackMessage = {
-                text: `* [수거넷 PC - 실시간 견적 신청 알림] *
+        if (!slackWebhookUrl) {
+            console.error('❌ SLACK_WEBHOOK_URL이 설정되지 않았습니다.');
+            return NextResponse.json({
+                success: false,
+                message: '서버 설정 오류: SLACK_WEBHOOK_URL 환경 변수가 없습니다.'
+            }, { status: 500 });
+        }
+
+        const slackMessage = {
+            text: `* [수거넷 PC - 실시간 견적 신청 알림] *
 
 안녕하세요, 사장님! 새로운 매입 견적 신청이 들어왔습니다. 🚀
 
@@ -27,22 +34,24 @@ export async function POST(request: Request) {
 ---
 
 웹사이트에서 확인된 실시간 신청 건입니다. 📞`,
-            };
+        };
 
-            await fetch(slackWebhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(slackMessage),
-            });
+        const slackResponse = await fetch(slackWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(slackMessage),
+        });
+
+        if (!slackResponse.ok) {
+            const errorText = await slackResponse.text();
+            console.error('❌ Slack API 오류:', errorText);
+            throw new Error(`Slack API responded with status ${slackResponse.status}: ${errorText}`);
         }
 
-        console.log('--- 🆕 새로운 견적 신청 수신 (서버) ---');
+        console.log('--- ✅ 견적 신청 및 슬랙 알림 전송 완료 ---');
         console.log('제품 종류:', type);
-        console.log('모델/제조사:', model);
-        console.log('사양:', `${cpu} / ${ram} / ${gpu}`);
         console.log('연락처:', phone);
-        console.log('메모:', memo);
-        console.log('------------------------------');
+        console.log('----------------------------------------');
 
         return NextResponse.json({
             success: true,
